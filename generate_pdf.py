@@ -179,21 +179,46 @@ def render_table(pdf, rows):
 
     pdf.ln(2)
     num_cols = max(len(r) for r in rows)
-    page_w = pdf.w - 20  # margins
-    col_w = min(page_w / num_cols, 35)
+    left_margin = 10
+    page_w = pdf.w - left_margin - 10  # usable width
 
-    # If table is too wide, use smaller font
-    if num_cols > 8:
+    # Determine font size based on column count
+    if num_cols > 10:
+        font_size = 4
+    elif num_cols > 7:
         font_size = 5
-        col_w = page_w / num_cols
     elif num_cols > 5:
         font_size = 6
-        col_w = page_w / num_cols
     else:
         font_size = 7
 
+    # Calculate column widths based on content
+    col_max_len = [0] * num_cols
+    for row in rows:
+        for j in range(num_cols):
+            if j < len(row):
+                text = clean_md(row[j])
+                col_max_len[j] = max(col_max_len[j], len(text))
+
+    # Allocate widths proportionally, with minimum width
+    total_chars = max(sum(col_max_len), 1)
+    col_widths = []
+    min_w = max(6, page_w / num_cols * 0.4)
+    for j in range(num_cols):
+        w = max(min_w, page_w * col_max_len[j] / total_chars)
+        col_widths.append(w)
+
+    # Normalize to fit page
+    total_w = sum(col_widths)
+    if total_w > page_w:
+        scale = page_w / total_w
+        col_widths = [w * scale for w in col_widths]
+
+    line_h = font_size * 0.6 + 1.5  # line height for multi_cell
+
     for i, row in enumerate(rows):
-        if i == 0:
+        is_header = (i == 0)
+        if is_header:
             pdf.set_font("meiryo", "B", font_size)
             pdf.set_fill_color(220, 230, 241)
         else:
@@ -203,28 +228,41 @@ def render_table(pdf, rows):
             else:
                 pdf.set_fill_color(255, 255, 255)
 
-        max_h = 4
-        for j, cell in enumerate(row):
-            if j < num_cols:
-                text = clean_md(cell)
-                # Estimate height needed
-                lines_needed = max(1, len(text) // int(col_w / 2) + 1)
-                max_h = max(max_h, lines_needed * 3.5)
+        # Calculate row height by measuring each cell
+        cell_texts = []
+        max_lines = 1
+        for j in range(num_cols):
+            text = clean_md(row[j]) if j < len(row) else ""
+            cell_texts.append(text)
+            # Estimate number of lines needed
+            if col_widths[j] > 0:
+                char_per_line = max(1, int(col_widths[j] / (font_size * 0.5)))
+                lines = max(1, (len(text) + char_per_line - 1) // char_per_line)
+                max_lines = max(max_lines, lines)
 
-        x_start = pdf.get_x()
+        row_h = max(line_h * max_lines + 1, line_h + 1)
+
+        x_start = left_margin
         y_start = pdf.get_y()
 
-        # Check if we need a new page
-        if y_start + max_h > pdf.h - 20:
+        # Page break if needed
+        if y_start + row_h > pdf.h - 20:
             pdf.add_page()
             y_start = pdf.get_y()
 
+        # Draw cells with borders and fill, then overlay text
+        x = x_start
         for j in range(num_cols):
-            cell_text = clean_md(row[j]) if j < len(row) else ""
-            pdf.set_xy(x_start + j * col_w, y_start)
-            pdf.cell(col_w, max_h, cell_text[:int(col_w / 1.5)], border=1, fill=True, align="C" if j > 0 else "L")
+            # Draw cell background and border
+            pdf.set_xy(x, y_start)
+            pdf.cell(col_widths[j], row_h, "", border=1, fill=True)
+            # Write text inside cell with padding
+            pdf.set_xy(x + 0.5, y_start + 0.5)
+            align = "C" if j > 0 else "L"
+            pdf.multi_cell(col_widths[j] - 1, line_h, cell_texts[j], align=align)
+            x += col_widths[j]
 
-        pdf.set_xy(x_start, y_start + max_h)
+        pdf.set_xy(left_margin, y_start + row_h)
 
     pdf.ln(3)
 
