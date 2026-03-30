@@ -4,7 +4,7 @@ import re
 from fpdf import FPDF
 
 FONT_PATH = "C:/Windows/Fonts/meiryo.ttc"
-BASE_DIR = "C:/Users/rimpei/business-strategy/analysis/202603"
+BASE_DIR = "C:/Users/Owner/business-strategy/analysis/202603"
 
 FILES = [
     ("report", "経営分析レポート_202602"),
