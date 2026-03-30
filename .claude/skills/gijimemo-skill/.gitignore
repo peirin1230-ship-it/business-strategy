@@ -1,0 +1,7 @@
+.DS_Store
+Thumbs.db
+*.skill
+*.tar.gz
+.env
+node_modules/
+__pycache__/
